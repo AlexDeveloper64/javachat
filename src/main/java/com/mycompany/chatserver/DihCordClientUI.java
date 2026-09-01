@@ -25,6 +25,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.ScrollPaneConstants;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
@@ -77,8 +78,9 @@ public class DihCordClientUI extends JFrame {
             msgLabel = new JLabel("gyat");
             msgLabel.setOpaque(true);
             msgLabel.setBackground(Color.white);
+            msgLabel.setHorizontalAlignment(SwingConstants.LEFT);
 
-            JPanel msgPanel = new JPanel();
+            JPanel msgPanel = new JPanel(new BorderLayout());
             msgPanel.add(msgLabel);
             msgPanel.setBackground(Color.white);
 
