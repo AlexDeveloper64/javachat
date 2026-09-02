@@ -197,7 +197,7 @@ public class DihCordClientUI extends JFrame {
                 msg = sendArea.getText();
                 sendArea.setText("");
                 try {
-                    currentClient.makeMessage("127.0.0.1", msg);
+                    currentClient.makeMessage(currentClient.getSocket().getInetAddress().getHostAddress() + ":" + currentClient.getSocket().getPort(), msg);
                 } catch (Exception ex) {
                     Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
                 }

@@ -55,21 +55,21 @@ public class DihCordServer {
                         DataInputStream is = new DataInputStream(s.getInputStream());
 
                         //put IP
-                        ipSocketMap.put(s.getInetAddress().getHostAddress() + "", s);
+                        ipSocketMap.put(s.getInetAddress().getHostAddress() + ":" + s.getPort() + "", s);
 
                         //put name
                         byte[] username = new byte[30];
                         is.readFully(username);
-                        ipNameMap.put(s.getInetAddress().getHostAddress() + "", new String(username, StandardCharsets.UTF_8));
+                        ipNameMap.put(s.getInetAddress().getHostAddress() + ":" + s.getPort() + "", new String(username, StandardCharsets.UTF_8));
 
                         //put public key
                         int keyLength = is.readInt();
                         byte[] key = new byte[keyLength];
                         is.readFully(key);
                         PublicKey temp = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(key));
-                        ipKeyMap.put(s.getInetAddress().getHostAddress() + "", temp);
+                        ipKeyMap.put(s.getInetAddress().getHostAddress() + ":" + s.getPort() + "", temp);
 
-                        System.out.println("Address: " + s.getLocalAddress() + "\nName: " + ipNameMap.get(s.getLocalAddress() + "") + "\nKey: " + ipKeyMap.get(s.getLocalAddress() + ""));
+                        System.out.println("Address: " + s.getInetAddress().getHostAddress() + ":" + s.getPort() + "\nName: " + ipNameMap.get(s.getInetAddress().getHostAddress() + ":" + s.getPort() + "") + "\nKey: " + ipKeyMap.get(s.getInetAddress().getHostAddress() + ":" + s.getPort() + ""));
                         Thread.sleep(100);
                     } catch (InterruptedException | IOException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
                         Logger.getLogger(DihCordServer.class.getName()).log(Level.SEVERE, null, ex);

@@ -150,6 +150,10 @@ public class DihCordClient {
         return messageList;
     }
 
+    public Socket getSocket() {
+        return s;
+    }
+    
     public static void main(String[] args) throws Exception {
         DihCordClient c = new DihCordClient(5000, "127.0.0.1");
     }
