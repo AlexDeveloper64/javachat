@@ -192,12 +192,17 @@ public class DihCordClientUI extends JFrame {
             c.fill = GridBagConstraints.HORIZONTAL;
             c.insets = new Insets(10, 10, 10, 10);
             contentPanel.add(topBar, c);
-
+            
+            
+            //delimiter for choosing name set to | for now because im soo lazy
             sendButton.addActionListener((ActionEvent e) -> {
-                msg = sendArea.getText();
+                String[] fullTxt = sendArea.getText().split("\\|");
+                String name = fullTxt[0].trim();
+                msg = fullTxt[1].trim();
+                
                 sendArea.setText("");
                 try {
-                    currentClient.makeMessage(currentClient.getSocket().getInetAddress().getHostAddress() + ":" + currentClient.getSocket().getPort(), msg);
+                    currentClient.makeMessage(name, msg);
                 } catch (Exception ex) {
                     Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
                 }

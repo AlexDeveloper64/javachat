@@ -1,6 +1,7 @@
 package com.mycompany.chatserver;
 //saving to onedrive!!
-
+//remember to add a timeout for public key in case user doesnt exist
+//remember to add way to choose user but thats in the ui class i think
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -24,15 +25,17 @@ public class DihCordClient {
 
     private KeyPair keypair;
     private Socket s;
-    //private HashMap<String, String> messageList = new HashMap<>(); //address and message
+    //private HashMap<String, String> messageList = new HashMap<>(); //name and message
     private ArrayList<String> messageDataList = new ArrayList<>();
-    private ArrayList<String> messageIPList = new ArrayList<>();
+    private ArrayList<String> messageNameList = new ArrayList<>();
     
-    private HashMap<String, PublicKey> publicKeys = new HashMap<>(); //address and public key
+    private String username;
+    
+    private HashMap<String, PublicKey> publicKeys = new HashMap<>(); //name and public key
 
     private HybridEncryptionUtil heu = new HybridEncryptionUtil();
 
-    public DihCordClient(int port, String address) throws IOException, InterruptedException, NoSuchAlgorithmException, Exception {
+    public DihCordClient(int port, String name) throws IOException, InterruptedException, NoSuchAlgorithmException, Exception {
         //make 3072 bit RSA key pair for stuff (cuz apparently that gives 128 bits of security which matches the 256 bit
         //AES moree.
         KeyPairGenerator keygen = KeyPairGenerator.getInstance("RSA");
@@ -40,7 +43,7 @@ public class DihCordClient {
         keypair = keygen.generateKeyPair();
 
         //Make username (up to 8 bytes) using tuff predicates :3
-        String username = JOptionPane.showInputDialog("Enter Username\n[A-z],[_-] MAX 30 CHARACTERS");
+        username = JOptionPane.showInputDialog("Enter Username\n[A-z],[_-] MAX 30 CHARACTERS");
         while (!username.matches("^[A-Za-z0-9_ -]+$") || username.length() > 30) {
             username = JOptionPane.showInputDialog("Invalid Username, try again\n[A-z],[_- ] MAX 30 CHARACTERS");
         }
@@ -53,7 +56,7 @@ public class DihCordClient {
         byte[] public_key_bytes = keypair.getPublic().getEncoded();
 
         //Writing Connection Data
-        s = new Socket(address, port);
+        s = new Socket(name, port);
         DataOutputStream os = new DataOutputStream(s.getOutputStream());
         DataInputStream is = new DataInputStream(s.getInputStream());
 
@@ -77,24 +80,24 @@ public class DihCordClient {
                         }
 
                         int messageType = is.readInt();
-                        String senderAddress = is.readUTF();
+                        String senderName = is.readUTF();
 
-                        System.out.println("Message Type: " + messageType + " Sender Address: " + senderAddress);
+                        System.out.println("Message Type: " + messageType + " Sender Name: " + senderName);
 
                         if (messageType == 1) { //public key recieved.
                             int keyLength = is.readInt();
                             byte[] keyBytes = new byte[keyLength];
                             is.readFully(keyBytes);
                             PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
-                            publicKeys.put(senderAddress, key);
+                            publicKeys.put(senderName, key);
                         } else if (messageType == 0) {
                             int dataLength = is.readInt();
                             byte[] data = new byte[dataLength];
                             is.readFully(data);
 
                             String result = heu.decrypt(keypair.getPrivate(), heu.createPackage(data));
-                            //messageList.put(senderAddress, result); not used
-                            messageIPList.add(senderAddress);
+                            //messageList.put(senderName, result); not used
+                            messageNameList.add(senderName);
                             messageDataList.add(result);
                         }
 
@@ -108,45 +111,46 @@ public class DihCordClient {
         }
 
         new MessageListener().start();//start listener thread
-
-        //makeMessage(s.getInetAddress() + "", "I'm going to collar you and walk you around");
     }
 
     //add code to get username too
-    public PublicKey requestPublicKey(String address) throws IOException, InterruptedException {
-        if (publicKeys.containsKey(address)) { //check if public key is saved first
-            return publicKeys.get(address);
+    public PublicKey requestPublicKey(String name) throws IOException, InterruptedException {
+        if (publicKeys.containsKey(name)) { //check if public key is saved first
+            return publicKeys.get(name);
         }
 
         DataOutputStream os = new DataOutputStream(s.getOutputStream());
 
         os.writeInt(1); //type 1 for public key request
-        os.writeUTF(address); //address matched to public key
+        os.writeUTF(name); //name matched to public key
         os.flush();
 
-        while (!publicKeys.containsKey(address)) {
+        while (!publicKeys.containsKey(name)) {
             //System.out.println("Still Waiting for key...");
             //System.out.println(publicKeys.toString());
             Thread.sleep(100);
         } //block until public key is recieved
 
         System.out.println("Public Key Fetched Succesfully");
-        return publicKeys.get(address);
+        return publicKeys.get(name);
     }
 
-    public void makeMessage(String address, String message) throws IOException, Exception {
+    public void makeMessage(String name, String message) throws IOException, Exception {
         DataOutputStream os = new DataOutputStream(s.getOutputStream());
         System.out.println("Message Created!");
-        byte[] encryptedData = heu.encrypt(requestPublicKey(address), message.getBytes(StandardCharsets.UTF_8)).pack();
+        messageNameList.add(username); //so that it displays when you send a messaage too, not just when you receive one
+        messageDataList.add(message); //message u sent
+        
+        byte[] encryptedData = heu.encrypt(requestPublicKey(name), message.getBytes(StandardCharsets.UTF_8)).pack();
 
         os.writeInt(0); //type 0 for message
-        os.writeUTF(address);
+        os.writeUTF(name);
         os.writeInt(encryptedData.length);
         os.write(encryptedData);
     }
     
     public ArrayList[] getMessages(){
-        ArrayList[] messageList = {messageIPList,messageDataList};
+        ArrayList[] messageList = {messageNameList,messageDataList};
         return messageList;
     }
 

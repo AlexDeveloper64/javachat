@@ -29,7 +29,9 @@ public class DihCordServer {
         HashMap<String, Socket> ipSocketMap = new HashMap<>();
         //Hashmap to match IP to public key
         HashMap<String, PublicKey> ipKeyMap = new HashMap<>();
-        //Hashmap to match IP to name
+        //Hashmap to match name to the IP (and port)
+        HashMap<String, String> nameIPMap = new HashMap<>();
+        //Hashmap to match IP to name (like the opposite of the above one)
         HashMap<String, String> ipNameMap = new HashMap<>();
 
         //Thread that accepts everything and adds it to the arraylist for like reading and stuff
@@ -60,8 +62,10 @@ public class DihCordServer {
                         //put name
                         byte[] username = new byte[30];
                         is.readFully(username);
-                        ipNameMap.put(s.getInetAddress().getHostAddress() + ":" + s.getPort() + "", new String(username, StandardCharsets.UTF_8));
-
+                        String usernameUTF = new String(username, StandardCharsets.UTF_8).replace("\0", "");
+                        nameIPMap.put(usernameUTF,s.getInetAddress().getHostAddress() + ":" + s.getPort() + ""); //both so you can get
+                        ipNameMap.put(s.getInetAddress().getHostAddress() + ":" + s.getPort(),usernameUTF);//ip from name and name from ip
+                        
                         //put public key
                         int keyLength = is.readInt();
                         byte[] key = new byte[keyLength];
@@ -69,7 +73,7 @@ public class DihCordServer {
                         PublicKey temp = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(key));
                         ipKeyMap.put(s.getInetAddress().getHostAddress() + ":" + s.getPort() + "", temp);
 
-                        System.out.println("Address: " + s.getInetAddress().getHostAddress() + ":" + s.getPort() + "\nName: " + ipNameMap.get(s.getInetAddress().getHostAddress() + ":" + s.getPort() + "") + "\nKey: " + ipKeyMap.get(s.getInetAddress().getHostAddress() + ":" + s.getPort() + ""));
+                        System.out.println("Address: " + s.getInetAddress().getHostAddress() + ":" + s.getPort() + "\nName: " + usernameUTF + "\nKey: " + ipKeyMap.get(s.getInetAddress().getHostAddress() + ":" + s.getPort() + ""));
                         Thread.sleep(100);
                     } catch (InterruptedException | IOException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
                         Logger.getLogger(DihCordServer.class.getName()).log(Level.SEVERE, null, ex);
@@ -90,8 +94,10 @@ public class DihCordServer {
                     int messageType = is.readInt();
                     System.out.println("Message Type: " + messageType);
                     if (messageType == 0) {
-                        String senderAddress = i.getInetAddress().getHostAddress()+"";
-                        String receiverAddress = is.readUTF();
+                        String senderName = ipNameMap.get(i.getInetAddress().getHostAddress() + ":" + i.getPort()+""); //person who sent message
+                        String receiverName = is.readUTF(); //person who will be receiving message
+                        String receiverAddress = nameIPMap.get(receiverName); //convert name to address (and port ffs)
+                        
                         int dataLength = is.readInt();
                         byte[] incomingData = new byte[dataLength];
                         is.readFully(incomingData);
@@ -103,7 +109,7 @@ public class DihCordServer {
                             System.out.println("Sending Message to: " + receiverAddress);
                             
                             rOS.writeInt(0); //message type message
-                            rOS.writeUTF(senderAddress); //who sent the message
+                            rOS.writeUTF(senderName); //who sent the message
                             rOS.writeInt(incomingData.length); //length of data
                             rOS.write(incomingData); //data
                             rOS.flush();
@@ -111,12 +117,14 @@ public class DihCordServer {
                         
                         System.out.println("Incoming Message");
                     } else if (messageType == 1) {
-                        String targetAddress = is.readUTF();
-                        System.out.println("Requested public key for: " + targetAddress);
+                        String targetName = is.readUTF();
+                        String targetAddress = nameIPMap.get(targetName);
+                        System.out.println("Requested public key for: " + targetName);
+                        
                         if (ipKeyMap.containsKey(targetAddress)) {
                             byte[] encodedKey = ipKeyMap.get(targetAddress).getEncoded();
                             os.writeInt(1); //return type is public key
-                            os.writeUTF(targetAddress);
+                            os.writeUTF(targetName);
                             os.writeInt(encodedKey.length); //length of key
                             os.write(encodedKey);
                             System.out.println("Public key sent");
