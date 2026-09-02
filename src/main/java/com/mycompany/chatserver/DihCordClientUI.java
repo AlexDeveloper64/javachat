@@ -79,8 +79,10 @@ public class DihCordClientUI extends JFrame {
             msgLabel.setOpaque(true);
             msgLabel.setBackground(Color.white);
             msgLabel.setHorizontalAlignment(SwingConstants.LEFT);
+            msgLabel.setVerticalAlignment(SwingConstants.TOP);
 
             JPanel msgPanel = new JPanel(new BorderLayout());
+            msgPanel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
             msgPanel.add(msgLabel);
             msgPanel.setBackground(Color.white);
 
