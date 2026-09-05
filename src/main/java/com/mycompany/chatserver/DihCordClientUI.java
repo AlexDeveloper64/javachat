@@ -5,6 +5,7 @@ import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -24,6 +25,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
@@ -46,22 +48,31 @@ public class DihCordClientUI extends JFrame {
     public JLabel msgLabel;
     public String msg = "";
 
+    final int COLLAPSE_SPEED = 20;
+
     public DihCordClientUI() {
         FlatDarkLaf.setup();
 
         SwingUtilities.invokeLater(() -> {
             JPanel mainPanel = new JPanel(new BorderLayout());
 
-            //Panel With Server list
+            //Panel With Server list + DM List
             JPanel serverPanel = new JPanel(new BorderLayout());
             serverPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
+            //Scrollpane with Server List
             JScrollPane serverScrollPane = new JScrollPane();                 //Server List ScrollPane
-            serverScrollPane.setPreferredSize(new Dimension(200, 400));
+            serverScrollPane.setPreferredSize(new Dimension(50, 400));
             serverScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
             serverScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+            serverPanel.add(serverScrollPane, BorderLayout.WEST);
 
-            serverPanel.add(serverScrollPane);
+            //Scrollpane with DM list
+            JScrollPane messagesScrollPane = new JScrollPane();                 //Server List ScrollPane
+            messagesScrollPane.setPreferredSize(new Dimension(200, 400));
+            messagesScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+            messagesScrollPane.getVerticalScrollBar().setUnitIncrement(16);
+            serverPanel.add(messagesScrollPane, BorderLayout.EAST);
 
             //Panel with page contents
             JPanel contentPanel = new JPanel(new GridBagLayout());
@@ -82,7 +93,7 @@ public class DihCordClientUI extends JFrame {
             msgLabel.setVerticalAlignment(SwingConstants.TOP);
 
             JPanel msgPanel = new JPanel(new BorderLayout());
-            msgPanel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+            msgPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
             msgPanel.add(msgLabel);
             msgPanel.setBackground(Color.white);
 
@@ -95,7 +106,7 @@ public class DihCordClientUI extends JFrame {
             boolean sListOpen[] = {true};
             serverListBtn.setPreferredSize(new Dimension(40, 40));
 
-            int preferredWidth[] = {200};
+            int preferredWidth[] = {270};
             serverListBtn.addActionListener((ActionEvent e) -> {
                 serverListBtn.setEnabled(false);
                 //Closes Server List
@@ -103,7 +114,7 @@ public class DihCordClientUI extends JFrame {
                     serverListBtn.setText("<");
                     System.out.println("CLOSING");
                     Timer t = new Timer(16, (ActionEvent e1) -> {
-                        preferredWidth[0] -= 30;
+                        preferredWidth[0] -= COLLAPSE_SPEED;
                         serverPanel.setPreferredSize(new Dimension(preferredWidth[0], serverPanel.getHeight()));
                         mainPanel.revalidate();
                         mainPanel.repaint();
@@ -120,11 +131,11 @@ public class DihCordClientUI extends JFrame {
                     serverListBtn.setText(">");
 
                     Timer t = new Timer(16, (ActionEvent e1) -> {
-                        preferredWidth[0] += 30;
+                        preferredWidth[0] += COLLAPSE_SPEED;
                         serverPanel.setPreferredSize(new Dimension(preferredWidth[0], serverPanel.getHeight()));
                         mainPanel.revalidate();
                         mainPanel.repaint();
-                        if (preferredWidth[0] >= 200) {
+                        if (preferredWidth[0] >= 270) {
                             ((Timer) e1.getSource()).stop();
                             System.out.println("STOP");
                             serverListBtn.setEnabled(true);
@@ -192,14 +203,13 @@ public class DihCordClientUI extends JFrame {
             c.fill = GridBagConstraints.HORIZONTAL;
             c.insets = new Insets(10, 10, 10, 10);
             contentPanel.add(topBar, c);
-            
-            
+
             //delimiter for choosing name set to | for now because im soo lazy
             sendButton.addActionListener((ActionEvent e) -> {
                 String[] fullTxt = sendArea.getText().split("\\|");
                 String name = fullTxt[0].trim();
                 msg = fullTxt[1].trim();
-                
+
                 sendArea.setText("");
                 try {
                     currentClient.makeMessage(name, msg);
@@ -208,20 +218,85 @@ public class DihCordClientUI extends JFrame {
                 }
             });
 
+            //<editor-fold desc="Message List Buttons & Pane">
+            JPanel messageList = new JPanel();
+            messageList.setLayout(new BoxLayout(messageList, BoxLayout.Y_AXIS));
+
+            JTextField addChat = new JTextField("(+)");
+
+            addChat.setPreferredSize(new Dimension(50, 50));
+            addChat.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+            messageList.add(addChat);
+
+            //JPanel serverListWrapper = new JPanel(new BorderLayout()); idk why i did this i dont think it does anything
+            //serverListWrapper.add(serverList);
+            messagesScrollPane.setViewportView(messageList);
+
+            //for showing a new member 
+            ArrayList[] names = {new ArrayList<String>()};
+            ArrayList[] newNames = {new ArrayList<String>()};
+            new Thread() {
+                @Override
+                public void run() {
+                    while (true) {
+                        if (currentClient == null) {
+                            try {
+                                Thread.sleep(100);
+                            } catch (InterruptedException ex) {
+                                Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
+                            }
+                            continue;
+                        }
+                        //adds a new JButton with the coressponding members (ignoring the user themselves)
+                        newNames[0] = currentClient.getMemberList();
+                        for (String i : (ArrayList<String>) newNames[0]) { //check for new names added to add to
+                            if (!names[0].contains(i) && !i.equals(currentClient.getUsername())) { //names list and add a button for it
+                                names[0].add(i);
+                                JButton btn = new JButton(i);
+
+                                btn.setPreferredSize(new Dimension(200, 50));
+                                btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+                                messageList.add(btn);
+                                messagesScrollPane.revalidate();
+                                messagesScrollPane.repaint(); //keep this cuz ill use it later to display all the members !
+                            }
+                        }
+
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ex) {
+                            Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                    }
+                }
+            }.start();
+
+            addChat.addActionListener((ActionEvent e) -> {
+                try {
+                } catch (Exception ex) {
+                    Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            });
+            //</editor-fold>
+
+            //<editor-fold desc="Server List Buttons & Pane">
             JPanel serverList = new JPanel();
             serverList.setLayout(new BoxLayout(serverList, BoxLayout.Y_AXIS));
 
-            JButton addServer = new JButton("Add Server (+)");
+            JButton addServer = new JButton("(+)");
 
-            addServer.setPreferredSize(new Dimension(100, 200));
-            addServer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+            addServer.setPreferredSize(new Dimension(50, 50));
+            addServer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
             serverList.add(addServer);
 
-            JPanel serverListWrapper = new JPanel(new BorderLayout());
-            serverListWrapper.add(serverList);
-            serverScrollPane.setViewportView(serverListWrapper);
+            //JPanel serverListWrapper = new JPanel(new BorderLayout()); idk why i did this i dont think it does anything
+            //serverListWrapper.add(serverList);
+            serverScrollPane.setViewportView(serverList);
 
+            //for adding a new server 
             addServer.addActionListener((ActionEvent e) -> {
                 try {
                     ServerDialog d = new ServerDialog(this, true);
@@ -248,24 +323,48 @@ public class DihCordClientUI extends JFrame {
                         //setting current client to the one on the button
                         public void setCurrentClient() {
                             currentClient = current;
+                            //resets member list
+                            JPanel contentPanel = (JPanel) messagesScrollPane.getViewport().getView();
+                            for (Component comp : contentPanel.getComponents()) {
+                                if (comp instanceof JButton button) {
+                                    contentPanel.remove(button);
+                                }
+                            }
+                            names[0].clear();
+                            //load new member list when client switches
+                            newNames[0] = currentClient.getMemberList();
+                            for (String i : (ArrayList<String>) newNames[0]) { //check for new names added to add to
+                                if (!names[0].contains(i) && !i.equals(currentClient.getUsername())) { //names list and add a button for it
+                                    names[0].add(i);
+                                    JButton btn = new JButton(i);
+
+                                    btn.setPreferredSize(new Dimension(200, 50));
+                                    btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+                                    messageList.add(btn);
+                                    messagesScrollPane.revalidate();
+                                    messagesScrollPane.repaint(); //keep this cuz ill use it later to display all the members !
+                                }
+                            }
+
+                            messagesScrollPane.repaint();
+                            messagesScrollPane.revalidate();
                         }
 
                     };
 
-                    btn.setPreferredSize(new Dimension(100, 200));
-                    btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+                    btn.setPreferredSize(new Dimension(50, 50));
+                    btn.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
                     serverList.add(btn);
                     serverScrollPane.revalidate();
                     serverScrollPane.repaint();
-                }/* catch (InterruptedException ex) {
-                    Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
-                } catch (NoSuchAlgorithmException ex) {
-                    Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
-                }*/ catch (Exception ex) {
+                } catch (Exception ex) {
                     Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
                 }
             });
+            //</editor-fold>            
+
             //light or dark mode
             AtomicBoolean mode = new AtomicBoolean(true);
             visMode.addActionListener((ActionEvent e) -> {
@@ -340,7 +439,7 @@ public class DihCordClientUI extends JFrame {
                             messagesStr += names.get(i) + ": " + safeMessage + "<br>";
                         }
                         msgLabel.setText(messagesStr + "</html>");
-                        
+
                         try {
                             Thread.sleep(100);
                         } catch (InterruptedException ex) {

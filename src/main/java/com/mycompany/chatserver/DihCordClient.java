@@ -28,6 +28,8 @@ public class DihCordClient {
     //private HashMap<String, String> messageList = new HashMap<>(); //name and message
     private ArrayList<String> messageDataList = new ArrayList<>();
     private ArrayList<String> messageNameList = new ArrayList<>();
+    //usernames
+    private ArrayList<String> memberList = new ArrayList<>();
     
     private String username;
     
@@ -42,7 +44,7 @@ public class DihCordClient {
         keygen.initialize(3072);
         keypair = keygen.generateKeyPair();
 
-        //Make username (up to 8 bytes) using tuff predicates :3
+        //Make username (up to 8 bytes)
         username = JOptionPane.showInputDialog("Enter Username\n[A-z],[_-] MAX 30 CHARACTERS");
         while (!username.matches("^[A-Za-z0-9_ -]+$") || username.length() > 30) {
             username = JOptionPane.showInputDialog("Invalid Username, try again\n[A-z],[_- ] MAX 30 CHARACTERS");
@@ -83,22 +85,39 @@ public class DihCordClient {
                         String senderName = is.readUTF();
 
                         System.out.println("Message Type: " + messageType + " Sender Name: " + senderName);
-
-                        if (messageType == 1) { //public key recieved.
-                            int keyLength = is.readInt();
-                            byte[] keyBytes = new byte[keyLength];
-                            is.readFully(keyBytes);
-                            PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
-                            publicKeys.put(senderName, key);
-                        } else if (messageType == 0) {
-                            int dataLength = is.readInt();
-                            byte[] data = new byte[dataLength];
-                            is.readFully(data);
-
-                            String result = heu.decrypt(keypair.getPrivate(), heu.createPackage(data));
-                            //messageList.put(senderName, result); not used
-                            messageNameList.add(senderName);
-                            messageDataList.add(result);
+                        //1 = public key received, 0 = message received, 2 = member list received
+                        switch (messageType) {
+                            case 1 -> {
+                                //public key recieved.
+                                int keyLength = is.readInt();
+                                byte[] keyBytes = new byte[keyLength];
+                                is.readFully(keyBytes);
+                                PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+                                publicKeys.put(senderName, key);
+                            }
+                            case 0 -> {
+                                int dataLength = is.readInt();
+                                byte[] data = new byte[dataLength];
+                                is.readFully(data);
+                                String result = heu.decrypt(keypair.getPrivate(), heu.createPackage(data));
+                                messageNameList.add(senderName);
+                                messageDataList.add(result);
+                            }
+                            case 2 -> {
+                                int dataLength = is.readInt();
+                                byte[] data = new byte[dataLength];
+                                is.readFully(data);
+                                String[] results = new String(data, StandardCharsets.UTF_8).split(",");
+                                
+                                //memberList.clear(); i dont think this is needed?
+                                for (String i : results) {
+                                    if (!memberList.contains(i)) {
+                                        memberList.add(i);
+                                    }
+                                }
+                            }
+                            default -> {
+                            }
                         }
 
                     } catch (IOException | InterruptedException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
@@ -156,6 +175,14 @@ public class DihCordClient {
 
     public Socket getSocket() {
         return s;
+    }
+
+    public ArrayList<String> getMemberList() {
+        return memberList;
+    }
+
+    public String getUsername() {
+        return username;
     }
     
     public static void main(String[] args) throws Exception {
