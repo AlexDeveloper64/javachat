@@ -2,6 +2,7 @@ package com.mycompany.chatserver;
 //saving to onedrive!!
 //remember to add a timeout for public key in case user doesnt exist
 //remember to add way to choose user but thats in the ui class i think
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -30,13 +31,15 @@ public class DihCordClient {
     private ArrayList<String> messageNameList = new ArrayList<>();
     //usernames
     private ArrayList<String> memberList = new ArrayList<>();
-    
+
     private String username;
-    
+
     private HashMap<String, PublicKey> publicKeys = new HashMap<>(); //name and public key
 
     private HybridEncryptionUtil heu = new HybridEncryptionUtil();
 
+    private boolean run = true; //kills the thread if false
+    
     public DihCordClient(int port, String name) throws IOException, InterruptedException, NoSuchAlgorithmException, Exception {
         //make 3072 bit RSA key pair for stuff (cuz apparently that gives 128 bits of security which matches the 256 bit
         //AES moree.
@@ -75,7 +78,7 @@ public class DihCordClient {
 
             @Override
             public void run() {
-                while (true) {
+                while (run) {
                     try {
                         if (is.available() <= 0) { //skip if theres no message
                             continue;
@@ -108,13 +111,10 @@ public class DihCordClient {
                                 byte[] data = new byte[dataLength];
                                 is.readFully(data);
                                 String[] results = new String(data, StandardCharsets.UTF_8).split(",");
-                                
-                                //memberList.clear(); i dont think this is needed?
-                                for (String i : results) {
-                                    if (!memberList.contains(i)) {
-                                        memberList.add(i);
-                                    }
-                                }
+
+                                //clear memberlist and refresh it by adding current members (handles joins and leaves)
+                                memberList.clear();
+                                memberList.addAll(Arrays.asList(results));
                             }
                             default -> {
                             }
@@ -128,7 +128,6 @@ public class DihCordClient {
                 }
             }
         }
-
         new MessageListener().start();//start listener thread
     }
 
@@ -155,11 +154,17 @@ public class DihCordClient {
     }
 
     public void makeMessage(String name, String message) throws IOException, Exception {
+        if (message.equals("LEAVE")) { //kill thread for testing REMOVE LATER!
+            run = false;
+            s.close();
+            return;
+        }
+        
         DataOutputStream os = new DataOutputStream(s.getOutputStream());
         System.out.println("Message Created!");
         messageNameList.add(username); //so that it displays when you send a messaage too, not just when you receive one
         messageDataList.add(message); //message u sent
-        
+
         byte[] encryptedData = heu.encrypt(requestPublicKey(name), message.getBytes(StandardCharsets.UTF_8)).pack();
 
         os.writeInt(0); //type 0 for message
@@ -167,9 +172,9 @@ public class DihCordClient {
         os.writeInt(encryptedData.length);
         os.write(encryptedData);
     }
-    
-    public ArrayList[] getMessages(){
-        ArrayList[] messageList = {messageNameList,messageDataList};
+
+    public ArrayList[] getMessages() {
+        ArrayList[] messageList = {messageNameList, messageDataList};
         return messageList;
     }
 
@@ -184,7 +189,7 @@ public class DihCordClient {
     public String getUsername() {
         return username;
     }
-    
+
     public static void main(String[] args) throws Exception {
         DihCordClient c = new DihCordClient(5000, "127.0.0.1");
     }

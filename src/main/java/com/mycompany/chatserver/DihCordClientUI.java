@@ -7,12 +7,18 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Image;
 import java.awt.Insets;
 import java.awt.event.ActionEvent;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -49,6 +55,7 @@ public class DihCordClientUI extends JFrame {
     public String msg = "";
 
     final int COLLAPSE_SPEED = 20;
+    Color globalFontColour = Color.BLACK;
 
     public DihCordClientUI() {
         FlatDarkLaf.setup();
@@ -72,8 +79,6 @@ public class DihCordClientUI extends JFrame {
             messagesScrollPane.setPreferredSize(new Dimension(200, 400));
             messagesScrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
             messagesScrollPane.getVerticalScrollBar().setUnitIncrement(16);
-            serverPanel.add(messagesScrollPane, BorderLayout.EAST);
-
             //Panel with page contents
             JPanel contentPanel = new JPanel(new GridBagLayout());
 
@@ -222,16 +227,18 @@ public class DihCordClientUI extends JFrame {
             JPanel messageList = new JPanel();
             messageList.setLayout(new BoxLayout(messageList, BoxLayout.Y_AXIS));
 
-            JTextField addChat = new JTextField("(+)");
+            JTextField searchMembers = new JTextField("(+)");
 
-            addChat.setPreferredSize(new Dimension(50, 50));
-            addChat.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+            searchMembers.setPreferredSize(new Dimension(200, 50));
+            searchMembers.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
-            messageList.add(addChat);
-
-            //JPanel serverListWrapper = new JPanel(new BorderLayout()); idk why i did this i dont think it does anything
-            //serverListWrapper.add(serverList);
+            JPanel messageListWrapper = new JPanel();
+            messageListWrapper.setLayout(new BoxLayout(messageListWrapper, BoxLayout.Y_AXIS));
+            messageListWrapper.add(searchMembers);
+            messageListWrapper.add(messagesScrollPane);
             messagesScrollPane.setViewportView(messageList);
+
+            serverPanel.add(messageListWrapper, BorderLayout.EAST);
 
             //for showing a new member 
             ArrayList[] names = {new ArrayList<String>()};
@@ -250,6 +257,7 @@ public class DihCordClientUI extends JFrame {
                         }
                         //adds a new JButton with the coressponding members (ignoring the user themselves)
                         newNames[0] = currentClient.getMemberList();
+                        System.out.println(newNames[0].toString());
                         for (String i : (ArrayList<String>) newNames[0]) { //check for new names added to add to
                             if (!names[0].contains(i) && !i.equals(currentClient.getUsername())) { //names list and add a button for it
                                 names[0].add(i);
@@ -263,6 +271,18 @@ public class DihCordClientUI extends JFrame {
                                 messagesScrollPane.repaint(); //keep this cuz ill use it later to display all the members !
                             }
                         }
+                        for (String i : (ArrayList<String>) names[0]){ //check for removed names
+                            if (!newNames[0].contains(i) && !i.equals(currentClient.getUsername())) {
+                                System.out.println("Removing Username: " + i);
+                                names[0].remove(i);
+                                //Use a consumer to iterate over array list with .forEach and delete buttons that leave.
+                                Arrays.asList(messageList.getComponents()).forEach((button)->{
+                                    if (((JButton) button).getText().equals(i)) {
+                                        messageList.remove(button);
+                                    }
+                                });
+                            }
+                        }
 
                         try {
                             Thread.sleep(1000);
@@ -273,10 +293,51 @@ public class DihCordClientUI extends JFrame {
                 }
             }.start();
 
-            addChat.addActionListener((ActionEvent e) -> {
-                try {
-                } catch (Exception ex) {
-                    Logger.getLogger(DihCordClientUI.class.getName()).log(Level.SEVERE, null, ex);
+            searchMembers.addFocusListener(new FocusListener() {
+                @Override
+                public void focusGained(FocusEvent e) {
+                    searchMembers.setText("");
+                    searchMembers.setFont(searchMembers.getFont().deriveFont(Font.PLAIN));
+                    searchMembers.setForeground(globalFontColour);
+                }
+
+                @Override
+                public void focusLost(FocusEvent e) {
+                    searchMembers.setText("Search Members");
+                    searchMembers.setFont(searchMembers.getFont().deriveFont(Font.ITALIC));
+                    searchMembers.setForeground(Color.GRAY);
+                }
+            });
+            //detects when letters are typed and sorts member list accordingly
+            searchMembers.addKeyListener(new KeyListener() {
+                @Override
+                public void keyTyped(KeyEvent e) {
+                }
+
+                @Override
+                public void keyPressed(KeyEvent e) {
+                }
+
+                @Override
+                public void keyReleased(KeyEvent e) {
+                    boolean result = false; //to make text red if no result
+
+                    String term = searchMembers.getText();
+                    Component[] memberButtons = messageList.getComponents();
+                    for (Component i : memberButtons) {
+                        JButton ii = (JButton) i;
+                        if (!ii.getText().contains(term)) {
+                            ii.setVisible(false);
+                        } else {
+                            result = true;
+                            ii.setVisible(true);
+                        }
+                    }
+                    if (!result) {
+                        searchMembers.setForeground(Color.RED);
+                    } else {
+                        searchMembers.setForeground(globalFontColour);
+                    }
                 }
             });
             //</editor-fold>
@@ -292,8 +353,6 @@ public class DihCordClientUI extends JFrame {
 
             serverList.add(addServer);
 
-            //JPanel serverListWrapper = new JPanel(new BorderLayout()); idk why i did this i dont think it does anything
-            //serverListWrapper.add(serverList);
             serverScrollPane.setViewportView(serverList);
 
             //for adding a new server 
@@ -377,12 +436,13 @@ public class DihCordClientUI extends JFrame {
                 }
 
                 if (mode.get()) { //Light Mode Enable
+                    globalFontColour = Color.BLACK;
                     mode.set(!mode.get());
                     FlatLightLaf.setup();
                     FlatLaf.updateUI();
                     msgPanel.setBackground(Color.white);
                     msgLabel.setBackground(Color.white);
-                    msgLabel.setForeground(Color.black);
+                    msgLabel.setForeground(globalFontColour);
 
                     final int frame[] = new int[1];
                     Timer timer = new Timer(20, (ActionEvent e1) -> {
@@ -396,6 +456,7 @@ public class DihCordClientUI extends JFrame {
                     timer.start();
 
                 } else { //Dark Mode Enable
+                    globalFontColour = Color.WHITE;
                     mode.set(!mode.get());
                     FlatDarkLaf.setup();
                     FlatLaf.updateUI();
