@@ -2,6 +2,7 @@ package com.mycompany.chatserver;
 //saving to onedrive!!
 //remember to add a timeout for public key in case user doesnt exist
 //remember to add way to choose user but thats in the ui class i think
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -28,13 +29,17 @@ public class DihCordClient {
     //private HashMap<String, String> messageList = new HashMap<>(); //name and message
     private ArrayList<String> messageDataList = new ArrayList<>();
     private ArrayList<String> messageNameList = new ArrayList<>();
-    
+    //usernames
+    private ArrayList<String> memberList = new ArrayList<>();
+
     private String username;
-    
+
     private HashMap<String, PublicKey> publicKeys = new HashMap<>(); //name and public key
 
     private HybridEncryptionUtil heu = new HybridEncryptionUtil();
 
+    private boolean run = true; //kills the thread if false
+    
     public DihCordClient(int port, String name) throws IOException, InterruptedException, NoSuchAlgorithmException, Exception {
         //make 3072 bit RSA key pair for stuff (cuz apparently that gives 128 bits of security which matches the 256 bit
         //AES moree.
@@ -42,7 +47,7 @@ public class DihCordClient {
         keygen.initialize(3072);
         keypair = keygen.generateKeyPair();
 
-        //Make username (up to 8 bytes) using tuff predicates :3
+        //Make username (up to 8 bytes)
         username = JOptionPane.showInputDialog("Enter Username\n[A-z],[_-] MAX 30 CHARACTERS");
         while (!username.matches("^[A-Za-z0-9_ -]+$") || username.length() > 30) {
             username = JOptionPane.showInputDialog("Invalid Username, try again\n[A-z],[_- ] MAX 30 CHARACTERS");
@@ -73,7 +78,7 @@ public class DihCordClient {
 
             @Override
             public void run() {
-                while (true) {
+                while (run) {
                     try {
                         if (is.available() <= 0) { //skip if theres no message
                             continue;
@@ -83,22 +88,36 @@ public class DihCordClient {
                         String senderName = is.readUTF();
 
                         System.out.println("Message Type: " + messageType + " Sender Name: " + senderName);
+                        //1 = public key received, 0 = message received, 2 = member list received
+                        switch (messageType) {
+                            case 1 -> {
+                                //public key recieved.
+                                int keyLength = is.readInt();
+                                byte[] keyBytes = new byte[keyLength];
+                                is.readFully(keyBytes);
+                                PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
+                                publicKeys.put(senderName, key);
+                            }
+                            case 0 -> {
+                                int dataLength = is.readInt();
+                                byte[] data = new byte[dataLength];
+                                is.readFully(data);
+                                String result = heu.decrypt(keypair.getPrivate(), heu.createPackage(data));
+                                messageNameList.add(senderName);
+                                messageDataList.add(result);
+                            }
+                            case 2 -> {
+                                int dataLength = is.readInt();
+                                byte[] data = new byte[dataLength];
+                                is.readFully(data);
+                                String[] results = new String(data, StandardCharsets.UTF_8).split(",");
 
-                        if (messageType == 1) { //public key recieved.
-                            int keyLength = is.readInt();
-                            byte[] keyBytes = new byte[keyLength];
-                            is.readFully(keyBytes);
-                            PublicKey key = KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(keyBytes));
-                            publicKeys.put(senderName, key);
-                        } else if (messageType == 0) {
-                            int dataLength = is.readInt();
-                            byte[] data = new byte[dataLength];
-                            is.readFully(data);
-
-                            String result = heu.decrypt(keypair.getPrivate(), heu.createPackage(data));
-                            //messageList.put(senderName, result); not used
-                            messageNameList.add(senderName);
-                            messageDataList.add(result);
+                                //clear memberlist and refresh it by adding current members (handles joins and leaves)
+                                memberList.clear();
+                                memberList.addAll(Arrays.asList(results));
+                            }
+                            default -> {
+                            }
                         }
 
                     } catch (IOException | InterruptedException | NoSuchAlgorithmException | InvalidKeySpecException ex) {
@@ -109,7 +128,6 @@ public class DihCordClient {
                 }
             }
         }
-
         new MessageListener().start();//start listener thread
     }
 
@@ -136,11 +154,17 @@ public class DihCordClient {
     }
 
     public void makeMessage(String name, String message) throws IOException, Exception {
+        if (message.equals("LEAVE")) { //kill thread for testing REMOVE LATER!
+            run = false;
+            s.close();
+            return;
+        }
+        
         DataOutputStream os = new DataOutputStream(s.getOutputStream());
         System.out.println("Message Created!");
         messageNameList.add(username); //so that it displays when you send a messaage too, not just when you receive one
         messageDataList.add(message); //message u sent
-        
+
         byte[] encryptedData = heu.encrypt(requestPublicKey(name), message.getBytes(StandardCharsets.UTF_8)).pack();
 
         os.writeInt(0); //type 0 for message
@@ -148,16 +172,24 @@ public class DihCordClient {
         os.writeInt(encryptedData.length);
         os.write(encryptedData);
     }
-    
-    public ArrayList[] getMessages(){
-        ArrayList[] messageList = {messageNameList,messageDataList};
+
+    public ArrayList[] getMessages() {
+        ArrayList[] messageList = {messageNameList, messageDataList};
         return messageList;
     }
 
     public Socket getSocket() {
         return s;
     }
-    
+
+    public ArrayList<String> getMemberList() {
+        return memberList;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
     public static void main(String[] args) throws Exception {
         DihCordClient c = new DihCordClient(5000, "127.0.0.1");
     }
